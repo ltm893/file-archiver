@@ -58,7 +58,7 @@ archive_array=("create" "modify" "query")
 archive_file=$3
 
 if [[ ! " ${archive_array[@]} " =~ " $archive_file " ]]; then
-    log_message="$archive_file archive file is not support"log
+    log_message="$archive_file archive file is not supported"
     echo "$log_message"
     log "$log_message"
     exit
@@ -104,6 +104,7 @@ while getopts ":b:r:c" opt; do
         if [ -r "$archive_name" ]; then
             check_file_older_than_in_archive $backup_file $archive_name
             if [ "$file_older_than_in_archive" = "yes" ]; then
+                echo 'if'
                 backup_the_file $backup_file $archive_name
             fi
         else
