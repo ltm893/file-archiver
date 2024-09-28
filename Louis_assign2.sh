@@ -14,41 +14,67 @@ log() {
 }
 
 backup_the_file() {
-    echo "Backing up $1 to $2"
-    log "Backing up $1 to $2"
+    message="Backing up $1 to $2"
+    echo "$message"
+    log "$message"
     tar -rvf "$2" "$1" # Add file to tar archive
 }
 
+restore_the_file() {
+    message="Restoring $1 from $2"
+    echo "$message"
+    log "$message"
+    tar -xvf "$2" "$1" "$3" #  Restore from tar archive
+}
+
+ remove_file_from_archive() {
+    message="Removing $1 from $2"
+    echo "$message"
+    log "$message"
+    tar --delete -f $2 $1
+ }
+
+ get_file_byte_size() {
+     file_byte_size=`cat $1 | wc -c`
+     echo "file_byte_size $file_byte_size"
+ }
+
+ get_file_gzip_byte_size() {
+    file_gzip_byte_size=`gzip -c $1 | wc -c`
+    echo "file_gzip_byte_size $file_gzip_byte_size"
+ }
+
 check_file_older_than_in_archive() {
     file_ts=$(stat -c %Y $1)
-    # echo "$file_ts"
+    echo "Stat $file_ts"
 
     tar_day=$(tar --list -v --full-time -f $2 | grep $1 | awk '{print $4}')
-    # echo "$tar_day"
+     echo "tar_day $tar_day"
     tar_time=$(tar --list -v --full-time -f $2 | grep $1 | awk '{print $5}')
-    # echo "$tar_time"
+    echo "tar time $tar_time"
 
     tar_ts=$(date -d "${tar_day} ${tar_time}" +"%s")
-    # echo "$tar_ts"
+    echo "tar ts $tar_ts"
     # count=$((file_ts-tar_ts))
     # echo $count
-    if [ "$file_ts" -gt "$tar_ts" ]; then
+    if [ "$file_ts" -lt "$tar_ts" ]; then
         # archive
         file_older_than_in_archive="yes"
     else
         file_older_than_in_archive="no"
     fi
+    echo "file_older_than_in_archive $file_older_than_in_archive"
 
 }
 
-check_file_in_tar() {
+check_file_in_archive() {
     tar -tf $2 | grep -q $1
     if [ $? == 0 ]; then
-        file_in_tar="yes"
-    else
-        file_in_tar="no"
+        file_in_archive="yes"
+   else
+        file_in_archive="no"
     fi
-   
+    echo "file in archive $file_in_archive"
 
 }
 
@@ -74,6 +100,11 @@ fi
 restore_file=""
 #archive_name="query.tar"  # Default archive name
 compression=false # Track if compression is requested
+
+get_file_gzip_byte_size "files/zip_group.csv"
+get_file_byte_size "files/zip_group.csv"
+
+
 
 # Check for options
 while getopts ":b:r:c" opt; do
@@ -101,18 +132,27 @@ while getopts ":b:r:c" opt; do
 
         # if the archive file readable compare unixtimestamps of file and whats in tar file
 
-        if [ -r "$archive_name" ]; then
-            check_file_older_than_in_archive $backup_file $archive_name
-            if [ "$file_older_than_in_archive" = "yes" ]; then
-                echo 'if'
-                backup_the_file $backup_file $archive_name
+        
+   
+        if [ -e "$archive_name" ]; then
+            echo "files $backup_file $archive_name"
+            check_file_in_archive $backup_file $archive_name
+            
+            echo  "File in archive $file_in_archive"
+            if [ "$file_in_archive" = "no" ] ; then
+                    backup_the_file $backup_file $archive_name
+            else 
+                check_file_older_than_in_archive $backup_file $archive_name
+                echo "File Older than archive $file_older_than_in_archive"
+                if [ "$file_older_than_in_archive" = "no" ]; then
+                    remove_file_from_archive $backup_file $archive_name
+                    backup_the_file $backup_file $archive_name
+                fi
             fi
-        else
-            echo 'else'
+       
+        else 
             backup_the_file $backup_file $archive_name
         fi
-        # Logic for backing up the file (e.g., adding to an archive)
-
         ;;
 
     r)
@@ -124,26 +164,27 @@ while getopts ":b:r:c" opt; do
             exit 9 # Exit status code 9 for archive retrieval failure
         fi
 
-        check_file_in_tar $restore_file $archive_name
+        check_file_in_archive $restore_file $archive_name
 
-        if [ "$file_in_tar" = "no" ] ; then
+        if [ "$file_in_archive" = "no" ] ; then
             echo "$restore_file does not exist in the  $archive_name"
             log "$restore_file does not exist in the $archive_name"
             exit 14 # does not exist in the archive
-        fi
-
-        if [ -e "$restore_file" ]; then
+      
+        else 
             check_file_older_than_in_archive $restore_file $archive_name
             if [ ${file_older_than_in_archive} = "yes" ]; then
                 #  then extract the file from the archive to the current directory as filename.newe
-                echo 'abc'
+                restore_the_file $restore_file $archive_name $restore_file".newer"
+            else
+                restore_the_file $restore_file $archive_name
             fi
         fi
 
         # Logic for restoring the file from the archive
-        echo "Restoring $restore_file from $archive_name"
-        log "Restoring $restore_file from $archive_name"
-        tar -xvf "$archive_name" "$restore_file" # Extract file from tar archive
+        # echo "Restoring $restore_file from $archive_name"
+        # log "Restoring $restore_file from $archive_name"
+        # tar -xvf "$archive_name" "$restore_file" # Extract file from tar archive
         ;;
 
     c)
