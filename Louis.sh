@@ -80,10 +80,6 @@ check_file_in_archive() {
 
 # The name of the archive file to use (create, modify, or query) will be passed to the script on the command line.
 
-archive_array=("create" "modify" "query")
-archive_file=$3
-archive_name=$archive_dir/$archive_file.tar
-log_message="${archive_name} is archive file"
 
 
 
@@ -93,17 +89,47 @@ restore_file=""
 #archive_name="query.tar"  # Default archive name
 compression=false # Track if compression is requested
 
-
-
-
-# Check for options
 while getopts ":b:rc" opt; do
-    case $opt in
+  case $opt in
     b)
-        shift $((OPTIND-1))
-        echo "Remaining positional arguments: $@"
-        # Backup option
+        opt_type=backup
         backup_file=${files_dir}/"$OPTARG"
+        echo "B"
+       
+      ;;
+    r)
+         opt_type=restore
+         restore_file=${files_dir}/"$OPTARG"
+      ;;
+    c)
+        compression=true
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "Option -$OPTARG requires an argument." >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Access positional arguments after getopts processing
+shift $((OPTIND-1))
+echo "Remaining positional arguments: $@"
+archive_file=${@[0]}
+archive_name=$archive_dir/$archive_file.tar
+echo "$archive_anme"
+
+if [ $opt_type = "backup" ]; then
+    if [ $"compression" == "true" ]; then
+        get_file_byte_size "$backup_file"
+        gzip "$backup_file" # Compress the specified file
+        get_file_gzip_byte_size "$backup_file"
+        backup_file=$backup_file.gz
+       
+    else 
         if [ ! -f "$backup_file" ]; then
             echo "Backup File Does not exist" >&2
             log "Backup File Does not exist"
@@ -122,8 +148,6 @@ while getopts ":b:rc" opt; do
             exit 6 # Exit status code 6 for archive access failure
         fi
 
-        # if the archive file readable compare unixtimestamps of file and whats in tar fil
-   
         if [ -e "$archive_name" ]; then
             echo "files $backup_file $archive_name"
             check_file_in_archive $backup_file $archive_name
@@ -140,72 +164,11 @@ while getopts ":b:rc" opt; do
                 fi
             fi
        
-        else 
+        else
             backup_the_file $backup_file $archive_name
         fi
-        ;;
 
-    r)
-        # Restore option
-        restore_file=${files_dir}/"$OPTARG"
-        if [ ! -r "$archive_name" ]; then
-            echo "Archive retrieval failure" >&2
-            log "Archive retrieval failure: $archive_name is not readable"
-            exit 9 # Exit status code 9 for archive retrieval failure
-        fi
-
-        check_file_in_archive $restore_file $archive_name
-
-        if [ "$file_in_archive" = "no" ] ; then
-            echo "$restore_file does not exist in the  $archive_name"
-            log "$restore_file does not exist in the $archive_name"
-            exit 14 # does not exist in the archive
-      
-        else 
-            check_file_older_than_in_archive $restore_file $archive_name
-            if [ ${file_older_than_in_archive} = "yes" ]; then
-                #  then extract the file from the archive to the current directory as filename.newe
-                restore_the_file $restore_file $archive_name $restore_file".newer"
-            else
-                restore_the_file $restore_file $archive_name
-            fi
-        fi
-
-        # Logic for restoring the file from the archive
-        # echo "Restoring $restore_file from $archive_name"
-        # log "Restoring $restore_file from $archive_name"
-        # tar -xvf "$archive_name" "$restore_file" # Extract file from tar archive
-        ;;
-
-    c)
-        # Compression option
-         compression=true # Mark that compression is requested
-        if [ ! -e "$backup_file" ]; then
-            exit 127 # Exit status code 127 if -c is used without -b
-        fi
-
-        # Logic for compressing the file before backup
-        echo "Compressing $backup_file"
-        log "Compressing $backup_file"
-      
-
-        ;;
-
-    \?)
-        echo "Invalid option: -$OPTARG" >&2
-        log "Invalid option: -$OPTARG"
-        exit 1 # Exit status code 1 for invalid option
-        ;;
-    esac
-done
-
-
-# Access positional arguments after getopts processing
-shift $((OPTIND-1))
-echo "Remaining positional arguments: $@"
-
-
-# Final check for -c option provided without -b
-if $compression && [ -z "$backup_file" ]; then
-    exit 127 # Exit status code 127 if -c is provided without a backup file
+    fi
 fi
+        
+
