@@ -17,6 +17,8 @@ backup_the_file() {
     message="Backing up $1 to $2"
     echo "$message"
     log "$message"
+    if [ $3 ] ; then
+    
     tar -rvf "$2" "$1" # Add file to tar archive
 }
 

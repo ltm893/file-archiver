@@ -102,6 +102,7 @@ while getopts ":b:rc" opt; do
          restore_file=${files_dir}/"$OPTARG"
       ;;
     c)
+        echo "C"
         compression=true
       ;;
     \?)
@@ -118,15 +119,16 @@ done
 # Access positional arguments after getopts processing
 shift $((OPTIND-1))
 echo "Remaining positional arguments: $@"
-archive_file=${@[0]}
+
+archive_file=$@
 archive_name=$archive_dir/$archive_file.tar
 echo "$archive_anme"
 
 if [ $opt_type = "backup" ]; then
-    if [ $"compression" == "true" ]; then
+    if [ "$compression" == "true" ]; then
         get_file_byte_size "$backup_file"
         gzip "$backup_file" # Compress the specified file
-        get_file_gzip_byte_size "$backup_file"
+        get_file_gzip_byte_size $backup_file.gz
         backup_file=$backup_file.gz
        
     else 
